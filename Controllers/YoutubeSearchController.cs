@@ -1,6 +1,9 @@
 using Google.Apis.Services;
 using Google.Apis.YouTube.v3;
+using Google.Apis.YouTube.v3.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using YoutubeAPIPOC.Configurations;
 using ILogger = Google.Apis.Logging.ILogger;
 
 namespace YoutubeAPIPOC.Controllers;
@@ -9,34 +12,41 @@ namespace YoutubeAPIPOC.Controllers;
 public class YoutubeSearchController:ControllerBase
 {
     private readonly ILogger<YoutubeSearchController> _logger;
+    private readonly SearchOptions _searchOptions;
 
-    public YoutubeSearchController(ILogger<YoutubeSearchController> logger)
+    public YoutubeSearchController(ILogger<YoutubeSearchController> logger,IOptions<SearchOptions> searchOptions)
     {
         _logger = logger;
+        _searchOptions = searchOptions.Value;
     }
     
     [HttpGet(Name = "YoutubeSearch")]
-    public async Task<List<string>> Get()
+    public async Task<List<string>> Get(string searchRequest)
     {
         //Replace Typed in information with Ioptions pattern so that
         YouTubeService youTubeService = new YouTubeService(
             new BaseClientService.Initializer()
             {
-                ApiKey = "ReplaceMe"
+
+                ApiKey = _searchOptions.ApiKey
             });
-        var searchListRequest = youTubeService.Search.List("snippet");
-        searchListRequest.Q = "Google"; // Replace with your search term.
-        searchListRequest.MaxResults = 50;
+        var searchListRequest = youTubeService.Search.List(_searchOptions.Part);
+        searchListRequest.Q = searchRequest; // Replace with your search term.
+        searchListRequest.MaxResults = _searchOptions.MaxResult;
 
         var searchListResponse = await searchListRequest.ExecuteAsync();
-    
+        var result = ResultParser(searchListResponse);
+       
+        return result;
+    }
+
+    [NonAction]
+    private List<string> ResultParser(SearchListResponse response)
+    {
         List<string> videos = new List<string>();
         List<string> channels = new List<string>();
         List<string> playlists = new List<string>();
-    
-        // Add each result to the appropriate list, and then display the lists of
-        // matching videos, channels, and playlists.
-        foreach (var searchResult in searchListResponse.Items)
+        foreach (var searchResult in response.Items)
         {
             switch (searchResult.Id.Kind)
             {
